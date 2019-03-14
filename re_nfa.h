@@ -1,7 +1,7 @@
 #ifndef RE_NFA_H
 #define RE_NFA_H
 
-
+int listid;
 struct State;
 typedef struct State state;
 
@@ -11,6 +11,8 @@ struct State
 
     state* out;
     state* out1;
+
+    int lastlist;
 };
 
 

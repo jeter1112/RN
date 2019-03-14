@@ -10,7 +10,7 @@
  * */
 
 
-static struct Mlist;
+
 typedef struct Mlist mlist;
 struct Mlist
 {
@@ -20,10 +20,10 @@ struct Mlist
 
 
 
-static struct Slist;
+
 typedef struct Slist slist;
 
-static struct Lnode;
+
 typedef struct Lnode node;
 
 struct Lnode
@@ -36,10 +36,10 @@ struct Slist
     int size;
     node* head;
 };
-
-
-static start_list(state*,mlist*);
-
+int ismatch(mlist*);
+static mlist* start_list(state*,mlist*);
+void step(mlist*,int,mlist*);
+void addstate(mlist*,state*);
 
 static node* create_node(state**,node*);
 static slist* create_list(state**);
@@ -48,7 +48,7 @@ static slist* append(slist*,slist*);
 static void  patch(slist*,state*);
 
 
-static struct Frag;
+
 typedef struct Frag frag;
 
 struct Frag
@@ -61,8 +61,8 @@ struct Frag
 static state* create_state(int,state*,state*);
 static int is_accept_state(state*);
 static int is_split_state(state*);
-
-
+static void delete_state(state*);
+static void delete_frag(frag*);
 static frag* create_frag(state*,slist*);
 
 
@@ -75,11 +75,51 @@ static int is_dot_or(char);
 /******* static method implementation  **/
 
 
-
-static start_list(state*start,mlist*m)
+int ismatch(mlist *l)
 {
-    m->msize=1;
-    m->s[0]=start;
+	int i;
+
+	for(i=0; i<l->msize; i++)
+		if(l->s[i]->charnum==257)
+			return 1;
+	return 0;
+}
+
+void step(mlist*cl,int c,mlist*nl)
+{
+    int i;
+	state *s;
+
+	listid++;
+	nl->msize = 0;
+	for(i=0; i<cl->msize; i++){
+		s = cl->s[i];
+		if(s->charnum == c)
+			addstate(nl, s->out);
+	}
+}
+
+void addstate(mlist* nl,state*s)
+{
+    if(s == NULL || s->lastlist == listid)
+		return;
+	s->lastlist = listid;
+	if(s->charnum == 256){
+		/* follow unlabeled arrows */
+		addstate(nl, s->out);
+		addstate(nl, s->out1);
+		return;
+	}
+	nl->s[nl->msize++] = s;
+}
+
+
+static mlist* start_list(state*start,mlist*m)
+{
+    m->msize=0;
+    listid++;
+    addstate(m, start);
+    return m;
 }
 
 
@@ -127,9 +167,20 @@ static void patch(slist* l,state* s)
 
     for(int i=0;i<l->size;++i)
     {
-        (*(p->var))->out=s;
+        (*(p->var))=s;
         p=p->next;
     }
+
+    // p=l->head;
+
+    // printf("patch effect\n");
+    // for(int i=0;i<l->size;++i)
+    // {
+    //     printf(":%c\n",(*(p->var))->charnum);
+    //     p=p->next;
+    // }
+    // printf("\n\n\n");
+
 }
 
 
@@ -163,7 +214,27 @@ static frag* create_frag(state*start,slist*l)
     frag* nf=malloc(sizeof(frag));
     nf->start=start;
     nf->outlist=l;
+
+
+    // printf("frag infor:\n");
+    // printf("Start:%c\n",nf->start->charnum);
+    // printf("Outlist:\n");
+    // node* p=nf->outlist->head;
+    // for(int i=0;i<nf->outlist->size;++i)
+    // {   
+    //     if(*(p->var)!=NULL)
+    //         printf("%c\n",(*(p->var))->charnum);
+    //     p=p->next;
+    // }
+
+    // printf("\n\n\n\n");
     return nf;
+}
+
+static void delete_frag(frag*f)
+{
+    free(f->outlist);
+    free(f);
 }
 
 
@@ -185,7 +256,20 @@ static int is_split_state(state* s)
     return s->charnum==256;
 }
 
+static void delete_state(state*s)
+{
+    if(s==NULL)
+        return ;
+    if(s->charnum==257)
+    {
+        free(s);
+        return;
+    }
 
+    delete_state(s->out);
+    delete_state(s->out1);
+    free(s);
+}
 
 
 
@@ -244,7 +328,8 @@ char* infix_to_postfix(char* infix)
     q=infix_strong;
     char* tip=post;
 
-    /***
+    /***List*
+startlist(State *s, List *l)
      * priority: ) * ? + . | (
      * 
      */
@@ -312,58 +397,63 @@ state* RE_to_NFA(char* post)
     frag* stack[leng];
     int s_size=0;
 
-
+    //printf("init---------->\n");
     for(int i=0;i<leng;++i)
     {
-
+        frag* f;
+        frag* f2;
+        frag* f1;
+        state* s;
+        
         switch(post[i])
         {
             case '*':
-                frag* f=stack[--s_size];
-                state* s=create_state(256,f->start,NULL);
+                f=stack[--s_size];
+                s=create_state(256,f->start,NULL);
                 patch(f->outlist,s);
                 frag* nf=create_frag(s,create_list(&(s->out1)));
                 stack[s_size++]=nf;
-                free(f);
+                delete_frag(f);
                 break;
 
             case '+':
-                frag* f=stack[--s_size];
-	            state* s=create_state(256,f->start,NULL);
+                f=stack[--s_size];
+	            s=create_state(256,f->start,NULL);
 	            patch(f->outlist, s);
-	            stack[s_size++]=create_frag(f->start, list1(&s->out1));
-                free(f);
+	            stack[s_size++]=create_frag(f->start, create_list(&s->out1));
+                delete_frag(f);
                 break;
             
             case '?':
-                frag* f=stack[--s_size];
+                f=stack[--s_size];
 	            s = create_state(256,f->start,NULL);
                 stack[s_size++]=create_frag(s,append(f->outlist,create_list(&(s->out1))));
-                free(f);
+                delete_frag(f);
                 break;
             
             case '|':
-                frag* f2=stack[--s_size];
-	            frag* f1=stack[--s_size];
+                f2=stack[--s_size];
+	            f1=stack[--s_size];
 	            s = create_state(256,f1->start,f2->start);
                 stack[s_size++]=create_frag(s,append(f1->outlist,f2->outlist));
-	            free(f2);
-                free(f1);
+	            delete_frag(f2);
+                delete_frag(f1);
                 break;
             
             case '.':
-                frag* f2=stack[--s_size];
-	            frag* f1=stack[--s_size];
+                f2=stack[--s_size];
+	            f1=stack[--s_size];
 	            patch(f1->outlist, f2->start);
 	            stack[s_size++]=create_frag(f1->start, f2->outlist);
-                free(f2);
-                free(f1);
+                delete_frag(f2);
+                delete_frag(f1);
 	
                 break;
 
             default:
-                state* s= create_state(post[i],NULL,NULL);
-                frag* f= create_frag(s,create_list(&(s->out)));
+                s= create_state(post[i],NULL,NULL);
+                f= create_frag(s,create_list(&(s->out)));
+                
                 stack[s_size++]=f;
                 break;
 
@@ -378,7 +468,7 @@ state* RE_to_NFA(char* post)
 	patch(f->outlist, match);
     state* result=f->start;
 
-    free(f);
+    delete_frag(f);
 	return result;
 
 }
@@ -386,10 +476,17 @@ state* RE_to_NFA(char* post)
 
 
 
-int RE_macth_string(char*post,state*start)
+int RE_macth_string(char*match_string,state*start)
 {
+
+    listid=0;
+    int leng=strlen(match_string);
     mlist l1;
+    l1.msize=0;
+    l1.s=malloc(sizeof(state*)*leng);
     mlist l2;
+    l2.msize=0;
+    l2.s=malloc(sizeof(state*)*leng);
 
     mlist*cl;
     mlist*nl;
@@ -397,12 +494,51 @@ int RE_macth_string(char*post,state*start)
 
     
 
+    cl=start_list(start,&l1);
+    nl=&l2;
+
+
+    for(;*match_string !='\0';++match_string)
+    {
+        step(cl, *match_string, nl);
+        t = cl; cl = nl; nl = t;
+    }
+
+
+
+    int result=ismatch(cl);
+    delete_state(start);
+
 
 }
 
 
 int main()
 {
+    
+    char* infix="ab";
+    char* post=infix_to_postfix(infix);
+
+    state* start=RE_to_NFA(post);
+
+    printf("%d\n",RE_macth_string("ac",start));
+
+
+
+
+
+    //  char* infix_test1="a(bb)*|c";
+    //  post=infix_to_postfix(infix_test1);
+    //  state* start=RE_to_NFA(post);
+    //  printf("%d\n",RE_macth_string("abbbbb",start));
+
+
+    // char* infix_test2="a?(bb)*|c+";
+    
+    // post=infix_to_postfix(infix_test2);
+    // state* start=RE_to_NFA(post);
+    // printf("%d\n",RE_macth_string("cccc",start));
+
     return 0;
 
 }
