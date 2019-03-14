@@ -19,5 +19,7 @@ specific step:
     1. expression is important is every language, here, we can convert infix expression to postfix expression;
     2. read postfix expression, when read a symbol, constuct a small DFA, whild read a RE operation, convert to an abstarct DFA;
     3. after the DFA constucts, write a function to match a given string, for each char in the string, go to next states, until the last states contain accept ones.
-     
+
+reference:
+        https://swtch.com/~rsc/regexp/regexp1.html   
     
