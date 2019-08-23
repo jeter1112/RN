@@ -413,7 +413,7 @@ state* RE_to_NFA(char* post)
                 patch(f->outlist,s);
                 frag* nf=create_frag(s,create_list(&(s->out1)));
                 stack[s_size++]=nf;
-                delete_frag(f);
+                //delete_frag(f);
                 break;
 
             case '+':
@@ -421,14 +421,14 @@ state* RE_to_NFA(char* post)
 	            s=create_state(256,f->start,NULL);
 	            patch(f->outlist, s);
 	            stack[s_size++]=create_frag(f->start, create_list(&s->out1));
-                delete_frag(f);
+                //delete_frag(f);
                 break;
             
             case '?':
                 f=stack[--s_size];
 	            s = create_state(256,f->start,NULL);
                 stack[s_size++]=create_frag(s,append(f->outlist,create_list(&(s->out1))));
-                delete_frag(f);
+                //delete_frag(f);
                 break;
             
             case '|':
@@ -436,8 +436,8 @@ state* RE_to_NFA(char* post)
 	            f1=stack[--s_size];
 	            s = create_state(256,f1->start,f2->start);
                 stack[s_size++]=create_frag(s,append(f1->outlist,f2->outlist));
-	            delete_frag(f2);
-                delete_frag(f1);
+	            //delete_frag(f2);
+                //delete_frag(f1);
                 break;
             
             case '.':
@@ -445,8 +445,8 @@ state* RE_to_NFA(char* post)
 	            f1=stack[--s_size];
 	            patch(f1->outlist, f2->start);
 	            stack[s_size++]=create_frag(f1->start, f2->outlist);
-                delete_frag(f2);
-                delete_frag(f1);
+                //delete_frag(f2);
+                //delete_frag(f1);
 	
                 break;
 
@@ -468,7 +468,8 @@ state* RE_to_NFA(char* post)
 	patch(f->outlist, match);
     state* result=f->start;
 
-    delete_frag(f);
+    
+    //delete_frag(f);
 	return result;
 
 }
